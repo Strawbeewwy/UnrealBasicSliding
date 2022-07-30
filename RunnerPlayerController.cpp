@@ -4,15 +4,9 @@
 #include "RunnerPlayerController.h"
 #include "RunnerGameCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "InteractionComponent.h"
-#include "InventoryComponent.h"
-#include "Item.h"
 #include "Components/CapsuleComponent.h"
-#include "PickUp.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "RunnerHUD.h"
-#include "VaultingComponent.h"
 
 
 ARunnerPlayerController::ARunnerPlayerController()
@@ -47,13 +41,6 @@ ARunnerPlayerController::ARunnerPlayerController()
 	/*allow the player to sprint*/
 	bCanSprint = true;
 
-	// 
-	// INTERACTION
-	//
-	/*setup the interaction properties*/
-	InteractionCheckFrequency = 0.f;
-	InteractionCheckDistance = 1000.f;
-
 	//
 	// MOVEMENT STATE
 	//
@@ -80,7 +67,6 @@ void ARunnerPlayerController::BeginPlay()
 {
 	Super::BeginPlay();
 
-
 	// 
 	// WALKING
 	//
@@ -97,22 +83,12 @@ void ARunnerPlayerController::BeginPlay()
 	/*Getting the capsule half height*/
 	StandingCapsuleHalfHeight = GetCharacter()->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 
-	//
-	// HUD
-	//
-	/*Getting a reference of the heads up display*/
-	RunnerHUD = Cast<ARunnerHUD>(GetHUD());
 }
 
 void ARunnerPlayerController::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
-	if (GetWorld()->TimeSince(InteractionData.LastInteractionCheckTime) > InteractionCheckFrequency)
-	{
-		PerformInteractionCheck();
-	}
-
+	
 	if ((MovementState == EMovementState::IR_Crouching || MovementState == EMovementState::IR_Sliding) && CanStand() && !bCrouching)
 	{
 		ResolveMovementState();
@@ -136,7 +112,6 @@ void ARunnerPlayerController::SetupInputComponent()
 		//
 		InputComponent->BindAxis("TurnRate", this, &ARunnerPlayerController::TurnRate);
 		InputComponent->BindAxis("LookUpRate", this, &ARunnerPlayerController::LookUpRate);
-		InputComponent->BindAction("SwitchPlayerPerspective", IE_Pressed, this, &ARunnerPlayerController::SwitchPlayerPerspective);
 
 		// 
 		// JUMP
@@ -160,12 +135,6 @@ void ARunnerPlayerController::SetupInputComponent()
 		// DASHING
 		// 
 		InputComponent->BindAction("Dash", IE_Pressed, this, &ARunnerPlayerController::StartDashing);
-
-		// 
-		// INTERACTION
-		// 
-		InputComponent->BindAction("Interact", IE_Pressed, this, &ARunnerPlayerController::BeginInteract);
-		InputComponent->BindAction("Interact", IE_Released, this, &ARunnerPlayerController::EndInteract);
 
 	}
 }
@@ -399,29 +368,6 @@ bool ARunnerPlayerController::CanDash()
 	return true;
 }
 
-void ARunnerPlayerController::SwitchPlayerPerspective()
-{
-	if (GetCharacter())
- 	{
-		const float SmoothTimeBlend = 0.75f;
-			 
-		if (PlayerPerspective == EPlayerPerspective::IR_FirstPerson)
-		{
-			Cast<ARunnerGameCharacter>(GetCharacter())->FirstPersonCameraComponent->Deactivate();
-			Cast<ARunnerGameCharacter>(GetCharacter())->ThirdPersonCameraComponent->Activate();
-			PlayerPerspective = EPlayerPerspective::IR_ThirdPerson;
-			InteractionCheckDistance += Cast<ARunnerGameCharacter>(GetCharacter())->ThirdPersonSpringArmComponent->TargetArmLength;
-		}
-		else if (PlayerPerspective == EPlayerPerspective::IR_ThirdPerson)
-		{
-			Cast<ARunnerGameCharacter>(GetCharacter())->ThirdPersonCameraComponent->Deactivate();
-			Cast<ARunnerGameCharacter>(GetCharacter())->FirstPersonCameraComponent->Activate();
-			PlayerPerspective = EPlayerPerspective::IR_FirstPerson;
-			InteractionCheckDistance -= Cast<ARunnerGameCharacter>(GetCharacter())->ThirdPersonSpringArmComponent->TargetArmLength;
-		}
-	}
-}
-
 void ARunnerPlayerController::StartSliding()
 {
 	FHitResult FloorHitResult;
@@ -535,181 +481,5 @@ void ARunnerPlayerController::OnMovementStateChange(EMovementState PreviousMovem
 	{
 		break;
 	}
-	}
-}
-
-void ARunnerPlayerController::Vault()
-{
-	ARunnerGameCharacter* CastedCharacter = Cast<ARunnerGameCharacter>(GetCharacter());
-	CastedCharacter->VaultingComponent->VaultInternal();
-	OnVaulting.Broadcast(CastedCharacter);
-}
-
-void ARunnerPlayerController::PerformInteractionCheck()
-{
-	//updates the last time when tried to seek for an interactable
-	InteractionData.LastInteractionCheckTime = GetWorld()->GetTimeSeconds();
-
-	//since it's FPS we want the line trace to be done where the players looks at
-	FVector EyesLocation;
-	FRotator EyesRotation;
-	GetPlayerViewPoint(EyesLocation, EyesRotation);
-
-	//initialization for the Line trace
-	FVector TraceStart = EyesLocation;
-	FVector TraceEnd = (EyesRotation.Vector() * InteractionCheckDistance) + TraceStart;
-	FHitResult TraceHit;
-
-	//we need to tell the line trace to ignore collision with the player
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(GetCharacter());
-
-	//if we hit something
-	if (GetWorld()->LineTraceSingleByChannel(TraceHit, TraceStart, TraceEnd, ECC_Visibility, QueryParams))
-	{
-		//Check if we hit an Actor
-		if (TraceHit.GetActor())
-		{
-			//if the actor we hit has an InteractionComponent
-			if (UInteractionComponent* InteractionComponent = Cast<UInteractionComponent>(TraceHit.GetActor()->GetComponentByClass(UInteractionComponent::StaticClass())))
-			{
-				float Distance = (TraceStart - TraceHit.ImpactPoint).Size();
-				//checks if the distance we are is under the maximum distance to Interact With the object and check if it is not the same actor
-				if (InteractionComponent != GetInteractable() && Distance <= InteractionComponent->InteractionDistance)
-				{
-					FoundNewInteractable(InteractionComponent);
-				}
-				else if (GetInteractable() && Distance > InteractionComponent->InteractionDistance) //if we are too far away, or looking at the same actor
-				{
-					CouldntFindInteractable();
-				}
-
-				return;
-			}
-		}
-	}
-	CouldntFindInteractable();
-}
-
-void ARunnerPlayerController::CouldntFindInteractable()
-{
-	if (GetWorldTimerManager().IsTimerActive(TimerHandle_Interact))
-	{
-		GetWorldTimerManager().ClearTimer(TimerHandle_Interact);
-	}
-
-	if (UInteractionComponent* Interactable = GetInteractable())
-	{
-		Interactable->EndFocus(Cast<ARunnerGameCharacter>(GetCharacter()));
-
-		if (InteractionData.bInteractHeld)
-		{
-			EndInteract();
-		}
-	}
-	InteractionData.ViewedInteractionComponent = nullptr;
-}
-
-void ARunnerPlayerController::FoundNewInteractable(UInteractionComponent* Interactable)
-{
-	EndInteract();
-
-	if (UInteractionComponent* OldInteractable = GetInteractable())
-	{
-		OldInteractable->EndFocus(Cast<ARunnerGameCharacter>(GetCharacter()));
-	}
-
-	InteractionData.ViewedInteractionComponent = Interactable;
-	Interactable->BeginFocus(Cast<ARunnerGameCharacter>(GetCharacter()));
-}
-
-void ARunnerPlayerController::BeginInteract()
-{
-
-	InteractionData.bInteractHeld = true;
-
-	if (UInteractionComponent* Interactable = GetInteractable())
-	{
-		Interactable->BeginInteract(Cast<ARunnerGameCharacter>(GetCharacter()));
-
-		if (FMath::IsNearlyZero(Interactable->InteractionTime))
-		{
-			Interact();
-		}
-		else
-		{
-			GetWorldTimerManager().SetTimer(TimerHandle_Interact, this, &ARunnerPlayerController::Interact, Interactable->InteractionTime, false);
-		}
-	}
-}
-
-void ARunnerPlayerController::EndInteract()
-{
-
-	InteractionData.bInteractHeld = false;
-
-	GetWorldTimerManager().ClearTimer(TimerHandle_Interact);
-
-	if (UInteractionComponent* Interactable = GetInteractable())
-	{
-		Interactable->EndInteract(Cast<ARunnerGameCharacter>(GetCharacter()));
-	}
-
-}
-
-void ARunnerPlayerController::Interact()
-{
-	GetWorldTimerManager().ClearTimer(TimerHandle_Interact);
-
-	if (UInteractionComponent* Interactable = GetInteractable())
-	{
-		Interactable->Interact(Cast<ARunnerGameCharacter>(GetCharacter()));
-	}
-}
-
-bool ARunnerPlayerController::IsInteracting() const
-{
-	return GetWorldTimerManager().IsTimerActive(TimerHandle_Interact);
-}
-
-float ARunnerPlayerController::GetRemainingInteractTime() const
-{
-	return GetWorldTimerManager().GetTimerRemaining(TimerHandle_Interact);
-}
-
-void ARunnerPlayerController::UseItem(class UItem* Item)
-{
-	if (Cast<ARunnerGameCharacter>(GetCharacter())->PlayerInventory && Cast<ARunnerGameCharacter>(GetCharacter())->PlayerInventory->FindItem(Item))
-	{//keeps the player from cheating by telling the server to use an item they don t own
-		return;
-	}
-	
-	if (Item)
-	{
-		Item->Use(Cast<ARunnerGameCharacter>(GetCharacter()));
-	}
-}
-
-void ARunnerPlayerController::DropItem(class UItem* Item, const int32 Quantity)
-{
-	if (Item && Cast<ARunnerGameCharacter>(GetCharacter())->PlayerInventory && Cast<ARunnerGameCharacter>(GetCharacter())->PlayerInventory->FindItem(Item))
-	{
-
-		const int32 ItemQuantity = Item->GetQuantity();
-		const int32 DroppedQuantity = Cast<ARunnerGameCharacter>(GetCharacter())->PlayerInventory->ConsumeItem(Item, Quantity);
-
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.Owner = NULL;
-		SpawnParams.bNoFail = true;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-		FVector PickupSpawnLocation = GetCharacter()->GetActorLocation();
-		PickupSpawnLocation.Z -= GetCharacter()->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-
-		FTransform PickupSpawnTransform(GetCharacter()->GetActorRotation(), PickupSpawnLocation);
-
-		APickUp* PickupToSpawn = GetWorld()->SpawnActor<APickUp>(PickupClass, PickupSpawnTransform, SpawnParams);
-		PickupToSpawn->InitializePickup(Item->GetClass(), DroppedQuantity);
-		
 	}
 }
