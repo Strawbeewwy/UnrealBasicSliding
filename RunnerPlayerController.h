@@ -13,42 +13,6 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStopSliding, class ARunnerGameCha
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStopSprinting, class ARunnerGameCharacter*, Character);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStartDashing, class ARunnerGameCharacter*, Character);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStopDashing, class ARunnerGameCharacter*, Character);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVaulting, class ARunnerGameCharacter*, Character);
-// 
-// INTERACTION DATA STRUCTURE
-//
-USTRUCT()
-struct FInteractionData
-{
-	GENERATED_BODY()
-
-	FInteractionData()
-	{
-		ViewedInteractionComponent = nullptr;
-		LastInteractionCheckTime = 0.f;
-		bInteractHeld = false;
-	}
-
-	//The current interactable component we're viewing, if there is one
-	UPROPERTY()
-		class UInteractionComponent* ViewedInteractionComponent;
-
-	//The time when we last checked for an interactable
-	UPROPERTY()
-		float LastInteractionCheckTime;
-
-	//Whether the local player is holding the interact key
-	UPROPERTY()
-		bool bInteractHeld;
-
-};
-
-UENUM(BlueprintType)
-enum class EPlayerPerspective : uint8
-{
-	IR_ThirdPerson UMETA(DisplayName = "ThirdPerson"),
-	IR_FirstPerson UMETA(DisplayName = "FirstPerson")
-};
 
 UENUM(BlueprintType)
 enum class EMovementState : uint8
@@ -73,7 +37,7 @@ protected:
 	// 
 	// CAMERA CONTROL
 	//
-		/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
+	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
 		float BaseTurnRate;
 
@@ -81,24 +45,23 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Camera)
 		float BaseLookUpRate;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
-	EPlayerPerspective PlayerPerspective;
-
 	//
 	// MovementState 
 	// 
+	/*Reference of the current movement state of this controller*/
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Movement|MovementState")
 	EMovementState MovementState;
 
 	//
 	// CROUCHING
 	//
+	/*tells us if the controller is crouching*/
 	UPROPERTY(VisibleAnywhere, Category = "Movement|Crouching")
 	bool bCrouching;
-
+	/*the speed at which the controller moves while crouched*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Crouching")
 	float CrouchSpeed;
-
+	/*Reference to the capsule half height: used in runtime calculations*/
 	UPROPERTY(VisibleAnywhere, Category = "Movement|Crouching")
 	float StandingCapsuleHalfHeight;
 
@@ -106,125 +69,94 @@ protected:
 	// 
 	// WAlKING
 	//
+	/*the speed at which this controller moves*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Walking")
-		float WalkSpeed;
-
+	float WalkSpeed;
+	/*the friction of the ground. higher friction means more force is needed to move this controller*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Walking")
-		float WalkingGroundFriction;
-
+	float WalkingGroundFriction;
+	/*Deceleration factor of the controller movement higher factor means more abrupt stop*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Walking")
-		float WalkingBrakingDecelerationWalking;
-
+	float WalkingBrakingDecelerationFactor;
+	/*the braking friction. higher friction means the controller will stop moving more abruptly*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Walking")
-		float WalkingBrakingFrictionFactor;
+	float WalkingBrakingFrictionFactor;
 
 	// 
 	// SPRINTING
 	//
+	/*the speed at which this controller moves while sprinting*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Sprinting")
-		float SprintSpeed;
-
+	float SprintSpeed;
+	/*tells us if the controller is sprinting*/
 	UPROPERTY(BlueprintReadOnly, Category = "Movement|Sprinting")
-		bool bSprinting;
-
+	bool bSprinting;
+	/*tells us if the controller is can sprint ie: cant sprint in water higher than capsule half height*/
 	UPROPERTY(BlueprintReadOnly, Category = "Movement|Sprinting")
-		bool bCanSprint;
-
+	bool bCanSprint;
+	
+	/*Delegate Where we can do stuff at the start of the sprint ie: change FOV like minecraft
+	this delegates is to implement in blueprints*/
 	UPROPERTY(EditDefaultsOnly, BlueprintAssignable)
 	FOnStartSprinting OnStartSprinting;
-
+	/*Delegate Where we can do stuff at the end of the sprint ie: change FOV back like minecraft
+	this delegates is to implement in blueprints*/
 	UPROPERTY(EditDefaultsOnly, BlueprintAssignable)
 	FOnStopSprinting OnStopSprinting;
 
 	//
 	// SLIDING 
 	//
+	/*Delegate Where we can do stuff at the start of the sliding
+	this delegates is to implement in blueprints*/
 	UPROPERTY(EditDefaultsOnly, BlueprintAssignable)
 	FOnStartSliding OnStartSliding;
-
+	/*Delegate Where we can do stuff at the end of the sliding
+	this delegates is to implement in blueprints*/
 	UPROPERTY(EditDefaultsOnly, BlueprintAssignable)
 	FOnStopSliding OnStopSliding;
-
+	/*the speed at which this controller moves while sliding*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Sliding")
 	float SlideSpeed;
-
+	/*the friction of the ground. higher friction means more force is needed to move this controller*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Sliding")
 	float SlidingGroundFriction;
-
+	/*Deceleration factor of the controller movement higher factor means more abrupt stop*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Sliding")
-	float SlidingBrakingDecelerationWalking;
-
+	float SlidingBrakingDecelerationFactor;
+	/*Gain or lost of speed while sliding ie: higher would me a gain in speed therefore a sliding like Apex Legends*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Sliding")
 	float SlideMultiplier;
 
 	//
 	// DASHING
 	//
+	/*the maximum distance of the Dash*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Dashing")
-		float DashDistance;
-
+	float DashDistance;
+	/*The cooldown of the Dash*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Dashing")
-		float DashCoolDown;
-
+	float DashCoolDown;
+	/*Time it takes for the Dash to Execute*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Dashing")
-		float DashExecTime;
-
+	float DashExecTime;
+	/*braking factor of the dash higher factor means more abrupt stop*/
 	UPROPERTY(EditDefaultsOnly, Category = "Movement|Dashing")
-		float DashBrakingFrictionFactor;
-
+	float DashBrakingFrictionFactor;
+	/*tells us if this contoller is Dashing*/
 	UPROPERTY(VisibleAnywhere, Category = "Movement|Dashing")
-		bool bDashing;
-
+	bool bDashing;
+	/*Timer handler For The Dash Execute Time then Cooldown*/
 	UPROPERTY(VisibleAnywhere, Category = "Movement|Dashing")
-		FTimerHandle TimerHandle_Dashing;
-
+	FTimerHandle TimerHandle_Dashing;
+	/*Delegate Where we can do stuff at the strat of the Dash
+	this delegates is to implement in blueprints*/
 	UPROPERTY(EditDefaultsOnly, BlueprintAssignable)
-		FOnStartDashing OnStartDashing;
-
+	FOnStartDashing OnStartDashing;
+	/*Delegate Where we can do stuff at the end of the Dash
+	this delegates is to implement in blueprints*/
 	UPROPERTY(EditDefaultsOnly, BlueprintAssignable)
-		FOnStopDashing OnStopDashing;
-	// 
-	// INTERACTION
-	//
-		/*How often in seconds to check for an interactable object. Set this to zero if you want to check every tick.*/
-	UPROPERTY(EditDefaultsOnly, Category = "Interaction")
-		float InteractionCheckFrequency;
-
-	/*How far we'll trace when we check if the player is looking at an interactable object*/
-	UPROPERTY(EditDefaultsOnly, Category = "Interaction")
-		float InteractionCheckDistance;
-
-	/*Information about the current state of the players interaction*/
-	UPROPERTY(VisibleAnywhere, Category = "Interaction")
-		FInteractionData InteractionData;
-
-	/*TimerHandler for interactions*/
-	UPROPERTY(VisibleAnywhere, Category = "Interaction")
-		FTimerHandle TimerHandle_Interact;
-
-	//Helper function to make grabbing interactable faster
-	FORCEINLINE class UInteractionComponent* GetInteractable() const { return InteractionData.ViewedInteractionComponent; }
-
-	// 
-	// VAULTING
-	//
-	UPROPERTY(EditDefaultsOnly, BlueprintAssignable)
-		FOnVaulting OnVaulting;
-
-
-	//
-	// HUD
-	//
-	class ARunnerHUD* RunnerHUD;
-
-public:
-
-	// 
-	// ITEM
-	//
-	UPROPERTY(EditDefaultsOnly, Category = "Item")
-	TSubclassOf<class APickUp> PickupClass;
-
+	FOnStopDashing OnStopDashing;
 protected:
 
 
@@ -233,7 +165,8 @@ protected:
 	//
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-
+	
+	//Called every frames
 	virtual void Tick(float DeltaTime) override;
 
 	// Called to bind functionality to input
@@ -242,179 +175,116 @@ protected:
 	// 
 	// CAMERA CONTROL
 	//
-		/* Called via input to turn at a given rate.*/
+	/* Called via input to turn at a given rate.*/
 	UFUNCTION(Category = Camera)
-		void TurnRate(float Rate);
+	void TurnRate(float Rate);
 
 	/*Called via input to turn look up/down at a given rate.*/
 	UFUNCTION(Category = Camera)
-		void LookUpRate(float Rate);
+	void LookUpRate(float Rate);
 
 	// 
 	// WAlKING
 	//
-		/** Handles moving forward/backward */
+	/** Handles moving forward/backward */
 	UFUNCTION(Category = "Movement")
-		void MoveForward(float Val);
+	void MoveForward(float Val);
 
 	/** Handles strafing movement, left and right */
 	UFUNCTION(Category = "Movement")
-		void MoveRight(float Val);
+	void MoveRight(float Val);
 
 	// 
 	// SPRINTING
 	//
-		/*determine if the Player can sprint*/
+	/*determine if the Player can sprint*/
 	UFUNCTION(Category = "Movement|Sprinting")
-		bool CanSprint();
+	bool CanSprint();
 
-	/*start and stop sprinting functions*/
+	/*Handles the start of this controller sprinting action*/
 	UFUNCTION(Category = "Movement|Sprinting")
-		void StartSprinting();
-
+	void StartSprinting();
+	/*Handles the end of this controller sprinting action*/
 	UFUNCTION(Category = "Movement|Sprinting")
-		void StopSprinting();
-
+	void StopSprinting();
+	/*since bSprinting is protected we need this function to change its value*/
 	UFUNCTION(Category = "Movement|Sprinting")
-		void SetSprinting(const bool bNewSprinting);
+	void SetSprinting(const bool bNewSprinting);
 
 
 	// 
 	// CROUCHING
 	//
-		/*start and stop crouching functions*/
+	/*Handles the start of this controller crouching action*/
 	UFUNCTION(Category = "Movement|Crouching")
-		void StartCrouching();
-
+	void StartCrouching();
+	/*Handles the end of this controller crouching action*/
 	UFUNCTION(Category = "Movement|Crouching")
-		void StopCrouching();
-
+	void StopCrouching();
+	/*since bCrouching is protected we need this function to change its value*/
 	UFUNCTION(Category = "Movement|Crouching")
-		void SetCrouching(bool bNewCrouching);
-
+	void SetCrouching(bool bNewCrouching);
+	/*determines if this controller can stand of must stay crouched*/
 	UFUNCTION(Category = "Movement|Crouching")
-		bool CanStand();
+	bool CanStand();
 
 	// 
 	// JUMPING
 	//
-		/*start and stop jumping functions*/
+	/*Handles the start of this controller jumping action*/
 	UFUNCTION(Category = "Movement|Jumping")
-		void StartJumping();
-
+	void StartJumping();
+	/*Handles the end of this controller jumping action*/
 	UFUNCTION(Category = "Movement|Jumping")
-		void StopJumping();
+	void StopJumping();
 
 	// 
 	// DASHING
 	//
-	/*Makes the character Dash in the direction it is facing*/
+	/*Handles the start of this controller dashing action*/
 	UFUNCTION(Category = "Movement|Dashing")
 	void StartDashing();
-
+	/*Handles the end of this controller dashing action*/
 	UFUNCTION(Category = "Movement|Dashing")
 	void StopDashing();
-	
+	/*since bDashing is protected we need this function to change its value*/
 	UFUNCTION(Category = "Movement|Dashing")
 	void SetDashing(bool bNewDashing);
-
+	/*After the cooldown we reset bDashing*/
 	UFUNCTION(Category = "Movement|Dashing")
 	void ResetDash();
-
+	/*determine if this controller can dash*/
 	UFUNCTION(Category = "Movement|Dashing")
 	bool CanDash();
-
-
-	// 
-	// CAMERA CONTROL
-	//
-	/*changes the player's point of view of his character*/
-	UFUNCTION(BlueprintCallable, Category = Camera)
-	void SwitchPlayerPerspective();
 
 	//
 	// SLIDING 
 	//
-	/*start and stop sliding functions*/
+	/*Handles the start of this controller sliding action*/
 	UFUNCTION(Category = "Movement|Sliding")
 	void StartSliding();
-
+	/*Handles the end of this controller sliding action*/
 	UFUNCTION(Category = "Movement|Sliding")
 	void StopSliding();
-
+	/*calculation of the flloor influence of the sliding speed. bigger slope means more influence*/
 	UFUNCTION(Category = "Movement|Sliding")
 	FVector CalculateFloorInfluence(FVector FloorNormal);
 
 	//
 	// MOVEMENT RESOLVING
 	//
+	/*This function makes sure that no values stay true or false when they should or should not*/
 	UFUNCTION(Category = "Movement|MovementState")
 	void ResolveMovementState();
-
+	/*Since this controller movement state is protected we need this function to change its value*/
 	UFUNCTION(Category = "Movement|MovementState")
 	void SetMovementState(EMovementState NewMovementState);
-
+	/*When Changing States we need to reset some values*/
 	UFUNCTION(Category = "Movement|MovementState")
 	void OnMovementStateChange(EMovementState PreviousMovementState);
 
-
-	// 
-	// VAULTING
-	//
-	/*Makes the character vault*/
-	UFUNCTION(Category = "Movement|Dashing")
-	void Vault();
-
-
-
 public:
-
+	/*Helper Function that returns the current movement state*/
 	UFUNCTION(BlueprintCallable, Category = "Movement|MovementState")
 	FORCEINLINE EMovementState GetMovementState() {return MovementState;}
-	
-	// 
-	// INTERACTION
-	//
-	//Cast a line trace and look for InteractionComponent in the actor that the Player looks at
-	UFUNCTION(Category = "interaction")
-		void PerformInteractionCheck();
-
-	//resets value when the player loose visual with an InteractionComponent
-	UFUNCTION(Category = "interaction")
-		void CouldntFindInteractable();
-
-	//show the widget of the interactionComponent
-	UFUNCTION(Category = "interaction")
-		void FoundNewInteractable(UInteractionComponent* Interactable);
-
-	//Begining of the interaction process
-	UFUNCTION(Category = "interaction")
-		void BeginInteract();
-
-	//ending of the interaction process
-	UFUNCTION(Category = "interaction")
-		void EndInteract();
-
-	//Perform the interaction
-	UFUNCTION(Category = "interaction")
-		void Interact();
-
-	//True if the player is interacting with an item that has an interaction time
-	UFUNCTION(Category = "interaction")
-		bool IsInteracting() const;
-
-	//Get the time till we interact with the current interactable
-	UFUNCTION(Category = "interaction")
-		float GetRemainingInteractTime() const;
-
-	// 
-	// ITEM
-	//
-
-	UFUNCTION(BlueprintCallable, Category = "Item")
-	void UseItem(class UItem* Item);
-
-	UFUNCTION(BlueprintCallable, Category = "Item")
-	void DropItem(class UItem* Item, const int32 Quantity);
-	
 };
